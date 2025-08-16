@@ -36,7 +36,7 @@ st.sidebar.header("Settings")
 DATA_DIR = read_env("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
-st.sidebar.subheader("LLM Settings")
+
 model_options = [
     "gpt-4o-mini",
     "gpt-5-mini",
@@ -225,4 +225,4 @@ with tab5:
             st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
 st.divider()
-st.caption("Local MVP. Everyone uses their own API key. Built with Streamlit, FAISS, OpenAI. XYZ")
+st.caption("Local MVP. Everyone uses their own API key. Built with Streamlit, FAISS, OpenAI.")
