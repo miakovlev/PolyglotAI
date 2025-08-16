@@ -6,14 +6,12 @@ from .utils import read_env, parse_openai_usage, Usage
 def chat(
     messages: List[Dict[str, str]],
     model: Optional[str] = None,
-    temperature: float = 0.2,
 ) -> Dict[str, Any]:
     client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
     m = model or read_env("MODEL", "gpt-4o-mini")
     resp = client.chat.completions.create(
         model=m,
         messages=messages,
-        temperature=temperature,
     )
     content = resp.choices[0].message.content
     usage = parse_openai_usage(resp)
@@ -24,7 +22,6 @@ def structure_text(
     raw_text: str,
     mode: str = "dialog",
     model: Optional[str] = None,
-    temperature: float = 0.2,
 ) -> Dict[str, Any]:
     """
     mode: 'dialog' or 'topics'
@@ -63,7 +60,6 @@ Transcript:
             {"role": "user", "content": user},
         ],
         model=model,
-        temperature=temperature,
     )
     return {"structured_text": out["content"], "usage": out["usage"], "model": out["model"]}
 
@@ -72,7 +68,6 @@ def translate_text(
     text: str,
     target_lang: str,
     model: Optional[str] = None,
-    temperature: float = 0.2,
 ) -> Dict[str, Any]:
     system = (
         "You are a precise translator. Preserve meaning and tone. Return only the translation."
@@ -83,7 +78,6 @@ def translate_text(
             {"role": "user", "content": f"Translate to {target_lang}:\n{text}"},
         ],
         model=model,
-        temperature=temperature,
     )
     return {"translation": out["content"], "usage": out["usage"], "model": out["model"]}
 
@@ -93,7 +87,6 @@ def explain_phrase(
     source_lang: str,
     target_lang: str,
     model: Optional[str] = None,
-    temperature: float = 0.2,
 ) -> Dict[str, Any]:
     system = (
         "You are a language tutor. Provide translation, grammar notes, "
@@ -111,6 +104,5 @@ def explain_phrase(
             {"role": "user", "content": user},
         ],
         model=model,
-        temperature=temperature,
     )
     return {"explanation": out["content"], "usage": out["usage"], "model": out["model"]}
