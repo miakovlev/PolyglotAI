@@ -2,11 +2,16 @@ version: "3.9"
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8501:8501"
-    env_file:
-      - .env
+    environment:
+      STREAMLIT_SERVER_PORT: "8501"
+      STREAMLIT_SERVER_ADDRESS: "0.0.0.0"
+      STREAMLIT_SERVER_HEADLESS: "true"
     volumes:
       - ./app/data:/app/app/data
+      - ./.streamlit:/app/.streamlit:ro
     restart: unless-stopped

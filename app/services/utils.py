@@ -51,9 +51,5 @@ def parse_openai_usage(resp) -> Usage:
         return Usage()
 
 
-def read_env(name: str, default: Optional[str] = None) -> str:
-    return os.getenv(name, default) or (default or "")
-
-
 def minutes_limit_ok(file_seconds: float, max_minutes: int) -> bool:
     return (file_seconds / 60.0) <= max_minutes

@@ -9,9 +9,10 @@ from typing import Dict, Any, List, Optional
 from pydub import AudioSegment
 from openai import OpenAI
 
-from .utils import read_env, ensure_dir
+from .utils import ensure_dir
+import streamlit as st
 
-DATA_DIR = read_env("DATA_DIR", "app/data")
+DATA_DIR = st.secrets.get("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
 
@@ -52,8 +53,8 @@ def transcribe(
           "language": Optional[str]
         }
     """
-    chosen_model = model or read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
-    client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
+    chosen_model = model or st.secrets.get("ASR_MODEL", "gpt-4o-mini-transcribe")
+    client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY"))
 
     with open(audio_path, "rb") as f:
         resp = client.audio.transcriptions.create(

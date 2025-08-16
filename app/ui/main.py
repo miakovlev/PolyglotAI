@@ -3,10 +3,8 @@ import pathlib
 from typing import Optional
 
 import streamlit as st
-from dotenv import load_dotenv
 
 from app.services.utils import (
-    read_env,
     ensure_dir,
     save_json,
     sha1_of_bytes,
@@ -16,9 +14,6 @@ from app.services.utils import (
 from app.services.asr import transcribe, _audio_duration_seconds
 from app.services.llm import structure_text, translate_text, explain_phrase, translate_phrase
 from app.services.tts import tts_to_mp3
-
-# Load .env early
-load_dotenv(override=True)
 
 APP_TITLE = "PolyglotAI | Language Toolkit"
 st.set_page_config(page_title=APP_TITLE, page_icon="🎧", layout="wide")
@@ -67,7 +62,7 @@ def pick_language(
     return LANG_PRESETS[choice]
 
 # --- Auth (simple) ---
-APP_TOKEN = read_env("APP_TOKEN", "")
+APP_TOKEN = st.secrets.get("APP_TOKEN", "")
 if APP_TOKEN:
     token = st.sidebar.text_input("Enter APP_TOKEN", type="password")
     if token != APP_TOKEN:
@@ -76,7 +71,7 @@ if APP_TOKEN:
 
 # --- Sidebar settings ---
 st.sidebar.header("Settings")
-DATA_DIR = read_env("DATA_DIR", "app/data")
+DATA_DIR = st.secrets.get("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
 model_options = [
@@ -86,16 +81,16 @@ model_options = [
     "gpt-4.1-mini",
     "gpt-4.1-nano",
 ]
-default_model = read_env("MODEL", "gpt-5-mini")
+default_model = st.secrets.get("MODEL", "gpt-5-mini")
 model = st.sidebar.selectbox(
     "LLM model",
     model_options,
     index=model_options.index(default_model) if default_model in model_options else 0,
 )
 
-max_audio_minutes = int(read_env("MAX_AUDIO_MINUTES", "60"))
+max_audio_minutes = int(st.secrets.get("MAX_AUDIO_MINUTES", "60"))
 
-st.sidebar.caption("Keys are read from your local .env. Tokens are billed to YOUR account.")
+st.sidebar.caption("Keys are read from your local secrets.toml. Tokens are billed to YOUR account.")
 
 # --- Tabs ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
@@ -135,7 +130,7 @@ with tab1:
         help="Upload a single audio file for transcription.",
     )
 
-    default_asr_model = read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
+    default_asr_model = st.secrets.get("ASR_MODEL", "gpt-4o-mini-transcribe")
     transcribe_model = st.selectbox(
         "Transcription model",
         [default_asr_model],
@@ -222,7 +217,7 @@ with tab4:
     tts_text = st.text_area("Text to synthesize", height=160)
 
     tts_model_options = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
-    default_tts_model = read_env("TTS_MODEL", "tts-1")
+    default_tts_model = st.secrets.get("TTS_MODEL", "tts-1")
     tts_model = st.selectbox(
         "TTS model",
         tts_model_options,
@@ -232,7 +227,7 @@ with tab4:
     )
 
     voice_options = ["alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"]
-    default_voice = read_env("TTS_VOICE", "alloy")
+    default_voice = st.secrets.get("TTS_VOICE", "alloy")
     voice = st.selectbox(
         "Voice",
         voice_options,

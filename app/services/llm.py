@@ -1,14 +1,14 @@
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
-from .utils import read_env, parse_openai_usage, Usage
-
+from .utils import parse_openai_usage
+import streamlit as st
 
 def chat(
     messages: List[Dict[str, str]],
     model: Optional[str] = None,
 ) -> Dict[str, Any]:
-    client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
-    m = model or read_env("MODEL", "gpt-4o-mini")
+    client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY"))
+    m = model or st.secrets.get("MODEL", "gpt-5-mini")
     resp = client.chat.completions.create(
         model=m,
         messages=messages,

@@ -1,9 +1,10 @@
 import os
 from typing import Dict, Any, Optional
 
+import streamlit as st
 from openai import OpenAI
 
-from .utils import read_env, ensure_dir
+from .utils import ensure_dir
 
 
 def tts_to_mp3(
@@ -13,9 +14,9 @@ def tts_to_mp3(
     voice: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Synthesize text into an MP3 file using OpenAI's streaming TTS API."""
-    client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
-    m = model or read_env("TTS_MODEL", "gpt-4o-mini-tts")
-    v = voice or read_env("TTS_VOICE", "alloy")
+    client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY"))
+    m = model or st.secrets.get("TTS_MODEL", "gpt-4o-mini-tts")
+    v = voice or st.secrets.get("TTS_VOICE", "alloy")
 
     ensure_dir(os.path.dirname(out_path))
 
