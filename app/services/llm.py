@@ -3,20 +3,29 @@ from openai import OpenAI
 from .utils import read_env, parse_openai_usage, Usage
 
 
-def chat(messages: List[Dict[str, str]], model: Optional[str] = None, temperature: float = 0.2) -> Dict[str, Any]:
+def chat(
+    messages: List[Dict[str, str]],
+    model: Optional[str] = None,
+    temperature: float = 0.2,
+) -> Dict[str, Any]:
     client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
     m = model or read_env("MODEL", "gpt-4o-mini")
     resp = client.chat.completions.create(
         model=m,
         messages=messages,
-        temperature=temperature
+        temperature=temperature,
     )
     content = resp.choices[0].message.content
     usage = parse_openai_usage(resp)
-    return {"content": content, "usage": usage}
+    return {"content": content, "usage": usage, "model": m}
 
 
-def structure_text(raw_text: str, mode: str = "dialog") -> Dict[str, Any]:
+def structure_text(
+    raw_text: str,
+    mode: str = "dialog",
+    model: Optional[str] = None,
+    temperature: float = 0.2,
+) -> Dict[str, Any]:
     """
     mode: 'dialog' or 'topics'
     Returns: { structured_text: str, json_hint: Optional[str], usage }
@@ -51,24 +60,41 @@ Transcript:
     out = chat(
         [
             {"role": "system", "content": system},
-            {"role": "user", "content": user}
-        ]
+            {"role": "user", "content": user},
+        ],
+        model=model,
+        temperature=temperature,
     )
-    return {"structured_text": out["content"], "usage": out["usage"]}
+    return {"structured_text": out["content"], "usage": out["usage"], "model": out["model"]}
 
 
-def translate_text(text: str, target_lang: str) -> Dict[str, Any]:
-    system = "You are a precise translator. Preserve meaning and tone. Return only the translation."
+def translate_text(
+    text: str,
+    target_lang: str,
+    model: Optional[str] = None,
+    temperature: float = 0.2,
+) -> Dict[str, Any]:
+    system = (
+        "You are a precise translator. Preserve meaning and tone. Return only the translation."
+    )
     out = chat(
         [
             {"role": "system", "content": system},
-            {"role": "user", "content": f"Translate to {target_lang}:\n{text}"}
-        ]
+            {"role": "user", "content": f"Translate to {target_lang}:\n{text}"},
+        ],
+        model=model,
+        temperature=temperature,
     )
-    return {"translation": out["content"], "usage": out["usage"]}
+    return {"translation": out["content"], "usage": out["usage"], "model": out["model"]}
 
 
-def explain_phrase(phrase: str, source_lang: str, target_lang: str) -> Dict[str, Any]:
+def explain_phrase(
+    phrase: str,
+    source_lang: str,
+    target_lang: str,
+    model: Optional[str] = None,
+    temperature: float = 0.2,
+) -> Dict[str, Any]:
     system = (
         "You are a language tutor. Provide translation, grammar notes, "
         "common usages, 3 example sentences, and 3 collocations."
@@ -82,7 +108,9 @@ def explain_phrase(phrase: str, source_lang: str, target_lang: str) -> Dict[str,
     out = chat(
         [
             {"role": "system", "content": system},
-            {"role": "user", "content": user}
-        ]
+            {"role": "user", "content": user},
+        ],
+        model=model,
+        temperature=temperature,
     )
-    return {"explanation": out["content"], "usage": out["usage"]}
+    return {"explanation": out["content"], "usage": out["usage"], "model": out["model"]}
