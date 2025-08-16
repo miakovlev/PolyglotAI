@@ -1,8 +1,5 @@
 import os
-import io
-import time
 import pathlib
-import base64
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -11,14 +8,12 @@ from app.services.utils import (
     read_env,
     ensure_dir,
     save_json,
-    load_json,
     sha1_of_bytes,
     sha1_of_text,
     minutes_limit_ok,
 )
 from app.services.asr import transcribe, _audio_duration_seconds
-from app.services.llm import structure_text, translate_text, explain_phrase, chat
-from app.services.rag import InMemoryIndex, simple_chunk
+from app.services.llm import structure_text, translate_text, explain_phrase
 from app.services.tts import tts_to_mp3
 
 # Load .env early
@@ -41,7 +36,7 @@ st.sidebar.header("Settings")
 DATA_DIR = read_env("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
-# LLM / embeddings models
+st.sidebar.subheader("LLM Settings")
 model_options = [
     "gpt-4o-mini",
     "gpt-5-mini",
@@ -58,13 +53,6 @@ model = st.sidebar.selectbox(
 embed_model = st.sidebar.text_input(
     "Embedding model", read_env("EMBED_MODEL", "text-embedding-3-small")
 )
-temperature = st.sidebar.slider(
-    "Temperature",
-    0.0,
-    1.0,
-    float(read_env("TEMPERATURE", "0.2")),
-    0.05,
-)
 
 # Transcription model selector (single-option for now; easy to extend later)
 default_asr_model = read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
@@ -74,7 +62,7 @@ transcribe_model = st.sidebar.selectbox(
     index=0,
 )
 
-# TTS model selector
+st.sidebar.subheader("TTS Settings")
 tts_model_options = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
 default_tts_model = read_env("TTS_MODEL", "gpt-4o-mini-tts")
 tts_model = st.sidebar.selectbox(
@@ -86,20 +74,17 @@ tts_model = st.sidebar.selectbox(
 )
 
 max_audio_minutes = int(read_env("MAX_AUDIO_MINUTES", "60"))
-top_k = int(read_env("TOP_K", "5"))
-max_answer_tokens = int(read_env("MAX_ANSWER_TOKENS", "800"))
 
 st.sidebar.caption("Keys are read from your local .env. Tokens are billed to YOUR account.")
 
 # --- Tabs ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "1) Upload & Transcribe",
         "2) Structure",
-        "3) Ask (QA)",
-        "4) Translate",
-        "5) TTS",
-        "6) Explain phrase",
+        "3) Translate",
+        "4) TTS",
+        "5) Explain phrase",
     ]
 )
 
@@ -108,8 +93,6 @@ if "transcript" not in st.session_state:
     st.session_state.transcript = None
 if "structured" not in st.session_state:
     st.session_state.structured = None
-if "index" not in st.session_state:
-    st.session_state.index = None
 
 # ====== 1) Upload & Transcribe ======
 with tab1:
@@ -172,68 +155,15 @@ with tab2:
         else:
             with st.spinner("Formatting..."):
                 out = structure_text(
-                    source_text, mode=mode, model=model, temperature=temperature
+                    source_text, mode=mode, model=model
                 )
             st.session_state.structured = out["structured_text"]
             st.text_area("Structured", st.session_state.structured, height=300)
             st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
-# ====== 3) Ask (QA) ======
+# ====== 3) Translate ======
 with tab3:
-    st.subheader("Ask questions about the text")
-    base_text = st.session_state.structured or (
-        st.session_state.transcript.get("text", "") if st.session_state.transcript else ""
-    )
-    base_text = st.text_area("Text to index", value=base_text, height=200)
-
-    col1, col2 = st.columns([1, 1])
-
-    with col1:
-        if st.button("Build index / Rebuild"):
-            if not base_text.strip():
-                st.warning("No text.")
-            else:
-                segments = [{"text": t} for t in simple_chunk(base_text)]
-                idx = InMemoryIndex(embed_model=embed_model)
-                with st.spinner("Embedding & indexing..."):
-                    idx.build(segments)
-                st.session_state.index = idx
-                st.success(f"Built index with {len(segments)} chunks.")
-
-    with col2:
-        question = st.text_input("Your question")
-        ask = st.button("Ask")
-        if ask:
-            if not st.session_state.index:
-                st.warning("Build the index first.")
-            else:
-                hits = st.session_state.index.query(question, top_k=top_k)
-                ctx = []
-                for i, h in enumerate(hits, 1):
-                    ctx.append(f"[{i}] {h['text']}")
-                ctx_text = "\n\n".join(ctx) if ctx else "(no context found)"
-
-                system = (
-                    "Answer strictly based on the provided context. "
-                    "If not present, say you don't know. Cite as [1],[2],..."
-                )
-                user = f"Question:\n{question}\n\nContext:\n{ctx_text}"
-
-                with st.spinner("Thinking..."):
-                    ans = chat(
-                        [
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": user},
-                        ],
-                        model=model,
-                        temperature=temperature,
-                    )
-                st.markdown(ans["content"])
-                st.caption(f"Model: {ans['model']} — Usage: {ans['usage'].total_tokens} tokens")
-
-# ====== 4) Translate ======
-with tab4:
-    st.subheader("Translate")
+    st.subheader("Translate text")
     text = st.text_area("Text", height=160)
     tgt = st.text_input("Target language (e.g., en, de, ru)")
     if st.button("Translate"):
@@ -242,16 +172,24 @@ with tab4:
         else:
             with st.spinner("Translating..."):
                 out = translate_text(
-                    text, tgt, model=model, temperature=temperature
+                    text, tgt, model=model
                 )
             st.text_area("Translation", out["translation"], height=200)
             st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
-# ====== 5) TTS ======
-with tab5:
-    st.subheader("Text-to-Speech (4o TTS)")
+# ====== 4) TTS ======
+with tab4:
+    st.subheader("Text-to-Speech")
     tts_text = st.text_area("Text to voice", height=160)
-    voice = st.text_input("Voice", read_env("TTS_VOICE", "alloy"))
+    voice_options = ["alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"]
+    default_voice = read_env("TTS_VOICE", "alloy")
+    voice = st.selectbox(
+        "Voice",
+        voice_options,
+        index=voice_options.index(default_voice)
+        if default_voice in voice_options
+        else 0,
+    )
     if st.button("Generate MP3"):
         if not tts_text.strip():
             st.warning("Provide text.")
@@ -273,8 +211,8 @@ with tab5:
                 mime="audio/mpeg",
             )
 
-# ====== 6) Explain phrase ======
-with tab6:
+# ====== 5) Explain phrase ======
+with tab5:
     st.subheader("Explain phrase")
     phr_col1, phr_col2, phr_col3 = st.columns([1, 1, 1])
     with phr_col1:
@@ -289,7 +227,7 @@ with tab6:
             st.warning("Provide phrase, source and target languages.")
         else:
             out = explain_phrase(
-                phrase, src, dst, model=model, temperature=temperature
+                phrase, src, dst, model=model
             )
             st.markdown(out["explanation"])
             st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
