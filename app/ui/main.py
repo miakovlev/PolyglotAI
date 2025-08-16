@@ -50,28 +50,6 @@ model = st.sidebar.selectbox(
     model_options,
     index=model_options.index(default_model) if default_model in model_options else 0,
 )
-embed_model = st.sidebar.text_input(
-    "Embedding model", read_env("EMBED_MODEL", "text-embedding-3-small")
-)
-
-# Transcription model selector (single-option for now; easy to extend later)
-default_asr_model = read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
-transcribe_model = st.sidebar.selectbox(
-    "Transcription model",
-    [default_asr_model],
-    index=0,
-)
-
-st.sidebar.subheader("TTS Settings")
-tts_model_options = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
-default_tts_model = read_env("TTS_MODEL", "gpt-4o-mini-tts")
-tts_model = st.sidebar.selectbox(
-    "TTS model",
-    tts_model_options,
-    index=tts_model_options.index(default_tts_model)
-    if default_tts_model in tts_model_options
-    else 0,
-)
 
 max_audio_minutes = int(read_env("MAX_AUDIO_MINUTES", "60"))
 
@@ -101,12 +79,15 @@ with tab1:
         "Audio file (.mp3/.m4a/.wav)", type=["mp3", "m4a", "wav"], accept_multiple_files=False
         # Streamlit stores the file temporarily; we persist it below.
     )
-    colA, colB = st.columns([1, 1])
-    with colA:
-        preferred_lang = st.text_input("Preferred language (optional, e.g., en, de, ru)", "")
-    with colB:
-        st.write("")
-        st.write(f"Model: {transcribe_model}")
+
+    default_asr_model = read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
+    transcribe_model = st.selectbox(
+        "Transcription model",
+        [default_asr_model],
+        index=0,
+    )
+
+    preferred_lang = st.text_input("Preferred language (optional, e.g., en, de, ru)", "")
 
     if uploaded is not None:
         audio_bytes = uploaded.read()
@@ -181,6 +162,17 @@ with tab3:
 with tab4:
     st.subheader("Text-to-Speech")
     tts_text = st.text_area("Text to voice", height=160)
+
+    tts_model_options = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
+    default_tts_model = read_env("TTS_MODEL", "tts-1")
+    tts_model = st.selectbox(
+        "TTS model",
+        tts_model_options,
+        index=tts_model_options.index(default_tts_model)
+        if default_tts_model in tts_model_options
+        else 0,
+    )
+
     voice_options = ["alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"]
     default_voice = read_env("TTS_VOICE", "alloy")
     voice = st.selectbox(
