@@ -1,5 +1,6 @@
 import os
 import pathlib
+from typing import Optional
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -13,15 +14,57 @@ from app.services.utils import (
     minutes_limit_ok,
 )
 from app.services.asr import transcribe, _audio_duration_seconds
-from app.services.llm import structure_text, translate_text, explain_phrase
+from app.services.llm import structure_text, translate_text, explain_phrase, translate_phrase
 from app.services.tts import tts_to_mp3
 
 # Load .env early
 load_dotenv(override=True)
 
-APP_TITLE = "DS Language Toolkit — MVP"
+APP_TITLE = "PolyglotAI | Language Toolkit"
 st.set_page_config(page_title=APP_TITLE, page_icon="🎧", layout="wide")
-st.title("🎧 DS Language Toolkit — MVP")
+st.title("🎧PolyglotAI | Language Toolkit")
+
+# --- Language presets (ISO-like codes or names your backend will accept) ---
+LANG_PRESETS = {
+    "English": "en",
+    "German": "de",
+    "Greek": "el",
+    "Russian": "ru",
+    "Spanish": "es",
+    "French": "fr",
+    "Italian": "it",
+    "Portuguese": "pt",
+    "Turkish": "tr",
+    "Arabic": "ar",
+    "Chinese": "zh",
+    "Japanese": "ja",
+    "Korean": "ko",
+    "Ukrainian": "uk",
+}
+
+def pick_language(
+    label: str,
+    key_prefix: str,
+    default_name: Optional[str] = None,
+    include_auto: bool = False,
+) -> str:
+    """
+    Selectbox с пресетами и 'Other…' (показывает text_input).
+    Если include_auto=True, добавляет 'Auto-detect' (возвращает пустую строку).
+    Возвращает код языка (или кастомную строку), либо "" при автоопределении.
+    """
+    options = list(LANG_PRESETS.keys()) + ["Other…"]
+    if include_auto:
+        options = ["Auto-detect"] + options
+    index = options.index(default_name) if (default_name in options) else 0
+    choice = st.selectbox(label, options, index=index, key=f"{key_prefix}_preset")
+
+    if choice == "Auto-detect":
+        return ""
+    if choice == "Other…":
+        custom = st.text_input("Enter language (name or ISO code)", key=f"{key_prefix}_custom")
+        return (custom or "").strip()
+    return LANG_PRESETS[choice]
 
 # --- Auth (simple) ---
 APP_TOKEN = read_env("APP_TOKEN", "")
@@ -36,7 +79,6 @@ st.sidebar.header("Settings")
 DATA_DIR = read_env("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
-
 model_options = [
     "gpt-4o-mini",
     "gpt-5-mini",
@@ -44,7 +86,7 @@ model_options = [
     "gpt-4.1-mini",
     "gpt-4.1-nano",
 ]
-default_model = read_env("MODEL", "gpt-4o-mini")
+default_model = read_env("MODEL", "gpt-5-mini")
 model = st.sidebar.selectbox(
     "LLM model",
     model_options,
@@ -56,13 +98,14 @@ max_audio_minutes = int(read_env("MAX_AUDIO_MINUTES", "60"))
 st.sidebar.caption("Keys are read from your local .env. Tokens are billed to YOUR account.")
 
 # --- Tabs ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     [
         "1) Upload & Transcribe",
         "2) Structure",
         "3) Translate",
         "4) TTS",
         "5) Explain phrase",
+        "6) Translate phrase",
     ]
 )
 
@@ -71,13 +114,25 @@ if "transcript" not in st.session_state:
     st.session_state.transcript = None
 if "structured" not in st.session_state:
     st.session_state.structured = None
+# Persist results for Explain (tab5)
+if "explanation" not in st.session_state:
+    st.session_state.explanation = ""
+if "explanation_meta" not in st.session_state:
+    st.session_state.explanation_meta = ""
+# Persist results for Translate phrase (tab6)
+if "tphrase" not in st.session_state:
+    st.session_state.tphrase = ""
+if "tphrase_meta" not in st.session_state:
+    st.session_state.tphrase_meta = ""
 
 # ====== 1) Upload & Transcribe ======
 with tab1:
-    st.subheader("Upload audio and transcribe")
+    st.subheader("Upload audio & transcribe")
     uploaded = st.file_uploader(
-        "Audio file (.mp3/.m4a/.wav)", type=["mp3", "m4a", "wav"], accept_multiple_files=False
-        # Streamlit stores the file temporarily; we persist it below.
+        "Audio file (.mp3/.m4a/.wav)",
+        type=["mp3", "m4a", "wav"],
+        accept_multiple_files=False,
+        help="Upload a single audio file for transcription.",
     )
 
     default_asr_model = read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
@@ -85,9 +140,14 @@ with tab1:
         "Transcription model",
         [default_asr_model],
         index=0,
+        help="Model used to transcribe the uploaded audio.",
     )
 
-    preferred_lang = st.text_input("Preferred language (optional, e.g., en, de, ru)", "")
+    preferred_lang = st.text_input(
+        "Preferred language (optional)",
+        "",
+        placeholder="ISO code like en, de, el, ru (leave blank for auto-detect)",
+    )
 
     if uploaded is not None:
         audio_bytes = uploaded.read()
@@ -104,7 +164,7 @@ with tab1:
         st.info(f"Saved as: `{audio_path}` — duration ~ {dur/60.0:.1f} min")
 
         if not minutes_limit_ok(dur, max_audio_minutes):
-            st.error(f"File longer than {max_audio_minutes} minutes limit.")
+            st.error(f"The file exceeds the {max_audio_minutes}-minute limit.")
         else:
             if st.button("Transcribe"):
                 with st.spinner("Transcribing..."):
@@ -117,51 +177,49 @@ with tab1:
                 out_dir = os.path.join(DATA_DIR, "transcripts")
                 ensure_dir(out_dir)
                 save_json(os.path.join(out_dir, f"{sha}.json"), res)
-                st.success("Transcription done.")
+                st.success("Transcription complete.")
                 st.text_area("Transcript", res.get("text", ""), height=200)
 
 # ====== 2) Structure ======
 with tab2:
     st.subheader("Structure the transcript")
-    mode = st.radio("Mode", ["dialog", "topics"], horizontal=True, index=0)
+    mode_label = st.radio("Mode", ["Dialog", "Topics"], horizontal=True, index=0)
+    mode_value = mode_label.lower()  # API expects "dialog" | "topics"
 
     source_text = ""
     if st.session_state.transcript:
         source_text = st.session_state.transcript.get("text", "")
-    source_text = st.text_area("Source text (fallback if no transcript)", value=source_text, height=200)
+    source_text = st.text_area("Source text (used if no transcript above)", value=source_text, height=200)
 
-    if st.button("Format"):
+    if st.button("Structure"):
         if not source_text.strip():
             st.warning("No text to structure.")
         else:
-            with st.spinner("Formatting..."):
-                out = structure_text(
-                    source_text, mode=mode, model=model
-                )
+            with st.spinner("Structuring..."):
+                out = structure_text(source_text, mode=mode_value, model=model)
             st.session_state.structured = out["structured_text"]
             st.text_area("Structured", st.session_state.structured, height=300)
             st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
 # ====== 3) Translate ======
 with tab3:
-    st.subheader("Translate text")
-    text = st.text_area("Text", height=160)
-    tgt = st.text_input("Target language (e.g., en, de, ru)")
+    st.subheader("Translate")
+    text = st.text_area("Source text", height=160)
+    tgt_lang = pick_language("Target language", key_prefix="translate_tgt", default_name="English")
+
     if st.button("Translate"):
-        if not text.strip() or not tgt.strip():
-            st.warning("Provide text and target language.")
+        if not text.strip() or not tgt_lang.strip():
+            st.warning("Please enter text and choose a target language.")
         else:
             with st.spinner("Translating..."):
-                out = translate_text(
-                    text, tgt, model=model
-                )
+                out = translate_text(text, tgt_lang, model=model)
             st.text_area("Translation", out["translation"], height=200)
             st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
 # ====== 4) TTS ======
 with tab4:
     st.subheader("Text-to-Speech")
-    tts_text = st.text_area("Text to voice", height=160)
+    tts_text = st.text_area("Text to synthesize", height=160)
 
     tts_model_options = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
     default_tts_model = read_env("TTS_MODEL", "tts-1")
@@ -184,7 +242,7 @@ with tab4:
     )
     if st.button("Generate MP3"):
         if not tts_text.strip():
-            st.warning("Provide text.")
+            st.warning("Please enter some text.")
         else:
             out_dir = os.path.join(DATA_DIR, "tts")
             ensure_dir(out_dir)
@@ -206,23 +264,69 @@ with tab4:
 # ====== 5) Explain phrase ======
 with tab5:
     st.subheader("Explain phrase")
+
     phr_col1, phr_col2, phr_col3 = st.columns([1, 1, 1])
     with phr_col1:
-        phrase = st.text_input("Phrase")
+        phrase = st.text_input("Phrase", placeholder="Type the phrase to explain...")
     with phr_col2:
-        src = st.text_input("Source lang (e.g., ru)")
+        # Source is optional
+        src_lang = pick_language(
+            "Source language (optional)",
+            key_prefix="explain_src",
+            default_name="Auto-detect",
+            include_auto=True,
+        )
     with phr_col3:
-        dst = st.text_input("Target lang (e.g., de)")
+        dst_lang = pick_language("Target language", key_prefix="explain_dst", default_name="German")
 
+    # Clicking Explain shows a spinner and ONLY THEN updates the visible explanation.
     if st.button("Explain"):
-        if not phrase.strip() or not src.strip() or not dst.strip():
-            st.warning("Provide phrase, source and target languages.")
+        if not phrase.strip() or not dst_lang.strip():
+            st.warning("Provide phrase and target language. Source language is optional.")
         else:
-            out = explain_phrase(
-                phrase, src, dst, model=model
-            )
-            st.markdown(out["explanation"])
-            st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
+            with st.spinner("Explaining..."):
+                out = explain_phrase(phrase, source_lang=(src_lang or None), target_lang=dst_lang, model=model)
+            # Update AFTER completion so changing inputs doesn't auto-clear
+            st.session_state.explanation = out["explanation"]
+            st.session_state.explanation_meta = f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens"
+
+    # Persistently show the last explanation; it survives control changes
+    if st.session_state.explanation:
+        st.markdown(st.session_state.explanation)
+        if st.session_state.explanation_meta:
+            st.caption(st.session_state.explanation_meta)
+
+# ====== 6) Translate phrase ======
+with tab6:
+    st.subheader("Translate phrase")
+
+    tr_col1, tr_col2, tr_col3 = st.columns([1, 1, 1])
+    with tr_col1:
+        tr_phrase = st.text_input("Phrase to translate", placeholder="Enter a phrase...")
+    with tr_col2:
+        # Optional source (auto-detect by default)
+        tr_src = pick_language(
+            "Source language (optional)",
+            key_prefix="tphrase_src",
+            default_name="Auto-detect",
+            include_auto=True,
+        )
+    with tr_col3:
+        tr_dst = pick_language("Target language", key_prefix="tphrase_dst", default_name="English")
+
+    if st.button("Translate phrase"):
+        if not tr_phrase.strip() or not tr_dst.strip():
+            st.warning("Provide a phrase and choose the target language. Source language is optional.")
+        else:
+            with st.spinner("Translating..."):
+                out = translate_phrase(tr_phrase, target_lang=tr_dst, source_lang=(tr_src or None), model=model)
+            st.session_state.tphrase = out["analysis"]
+            st.session_state.tphrase_meta = f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens"
+
+    if st.session_state.tphrase:
+        st.markdown(st.session_state.tphrase)
+        if st.session_state.tphrase_meta:
+            st.caption(st.session_state.tphrase_meta)
 
 st.divider()
-st.caption("Local MVP. Everyone uses their own API key. Built with Streamlit, FAISS, OpenAI.")
+st.caption("Local MVP. Everyone uses their own API key. Built with Streamlit, OpenAI.")
