@@ -1,27 +1,31 @@
 import os
-from typing import Dict, Any
-from .utils import read_env, ensure_dir
+from typing import Dict, Any, Optional
+
 from openai import OpenAI
 
+from .utils import read_env, ensure_dir
 
-def tts_to_mp3(text: str, out_path: str) -> Dict[str, Any]:
+
+def tts_to_mp3(
+    text: str,
+    out_path: str,
+    model: Optional[str] = None,
+    voice: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Synthesize text into an MP3 file using OpenAI's streaming TTS API."""
     client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
-    model = read_env("TTS_MODEL", "gpt-4o-mini-tts")
-    voice = read_env("TTS_VOICE", "alloy")
+    m = model or read_env("TTS_MODEL", "gpt-4o-mini-tts")
+    v = voice or read_env("TTS_VOICE", "alloy")
 
     ensure_dir(os.path.dirname(out_path))
 
-    # OpenAI Audio API: text-to-speech
-    # Some SDK versions use audio.speech.create(), others audio.speech.with_streaming_response
-    resp = client.audio.speech.create(
-        model=model,
-        voice=voice,
+    # Stream the audio directly to disk to avoid buffering large responses in memory
+    with client.audio.speech.with_streaming_response.create(
+        model=m,
+        voice=v,
         input=text,
-        format="mp3"
-    )
+    ) as response:
+        response.stream_to_file(out_path)
 
-    # Save bytes
-    with open(out_path, "wb") as f:
-        f.write(resp.read())
+    return {"path": out_path, "model": m, "voice": v}
 
-    return {"path": out_path}

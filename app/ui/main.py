@@ -42,9 +42,28 @@ DATA_DIR = read_env("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
 # LLM / embeddings models
-model = st.sidebar.text_input("LLM model", read_env("MODEL", "gpt-4o-mini"))
+model_options = [
+    "gpt-4o-mini",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+]
+default_model = read_env("MODEL", "gpt-4o-mini")
+model = st.sidebar.selectbox(
+    "LLM model",
+    model_options,
+    index=model_options.index(default_model) if default_model in model_options else 0,
+)
 embed_model = st.sidebar.text_input(
     "Embedding model", read_env("EMBED_MODEL", "text-embedding-3-small")
+)
+temperature = st.sidebar.slider(
+    "Temperature",
+    0.0,
+    1.0,
+    float(read_env("TEMPERATURE", "0.2")),
+    0.05,
 )
 
 # Transcription model selector (single-option for now; easy to extend later)
@@ -53,6 +72,17 @@ transcribe_model = st.sidebar.selectbox(
     "Transcription model",
     [default_asr_model],
     index=0,
+)
+
+# TTS model selector
+tts_model_options = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
+default_tts_model = read_env("TTS_MODEL", "gpt-4o-mini-tts")
+tts_model = st.sidebar.selectbox(
+    "TTS model",
+    tts_model_options,
+    index=tts_model_options.index(default_tts_model)
+    if default_tts_model in tts_model_options
+    else 0,
 )
 
 max_audio_minutes = int(read_env("MAX_AUDIO_MINUTES", "60"))
@@ -141,10 +171,12 @@ with tab2:
             st.warning("No text to structure.")
         else:
             with st.spinner("Formatting..."):
-                out = structure_text(source_text, mode=mode)
+                out = structure_text(
+                    source_text, mode=mode, model=model, temperature=temperature
+                )
             st.session_state.structured = out["structured_text"]
             st.text_area("Structured", st.session_state.structured, height=300)
-            st.caption(f"Usage: {out['usage'].total_tokens} tokens")
+            st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
 # ====== 3) Ask (QA) ======
 with tab3:
@@ -189,11 +221,15 @@ with tab3:
 
                 with st.spinner("Thinking..."):
                     ans = chat(
-                        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                        [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
                         model=model,
+                        temperature=temperature,
                     )
                 st.markdown(ans["content"])
-                st.caption(f"Usage: {ans['usage'].total_tokens} tokens")
+                st.caption(f"Model: {ans['model']} — Usage: {ans['usage'].total_tokens} tokens")
 
 # ====== 4) Translate ======
 with tab4:
@@ -205,9 +241,11 @@ with tab4:
             st.warning("Provide text and target language.")
         else:
             with st.spinner("Translating..."):
-                out = translate_text(text, tgt)
+                out = translate_text(
+                    text, tgt, model=model, temperature=temperature
+                )
             st.text_area("Translation", out["translation"], height=200)
-            st.caption(f"Usage: {out['usage'].total_tokens} tokens")
+            st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
 # ====== 5) TTS ======
 with tab5:
@@ -223,11 +261,17 @@ with tab5:
             fname = sha1_of_text(tts_text)[:12] + ".mp3"
             out_path = os.path.join(out_dir, fname)
             with st.spinner("Synthesizing..."):
-                res = tts_to_mp3(tts_text, out_path)
+                res = tts_to_mp3(tts_text, out_path, model=tts_model, voice=voice)
             st.success(f"Saved: {res['path']}")
+            st.caption(f"Model: {res['model']} — Voice: {res['voice']}")
             audio_bytes = open(out_path, "rb").read()
             st.audio(audio_bytes, format="audio/mp3")
-            st.download_button("Download MP3", data=audio_bytes, file_name=fname, mime="audio/mpeg")
+            st.download_button(
+                "Download MP3",
+                data=audio_bytes,
+                file_name=fname,
+                mime="audio/mpeg",
+            )
 
 # ====== 6) Explain phrase ======
 with tab6:
@@ -244,9 +288,11 @@ with tab6:
         if not phrase.strip() or not src.strip() or not dst.strip():
             st.warning("Provide phrase, source and target languages.")
         else:
-            out = explain_phrase(phrase, src, dst)
+            out = explain_phrase(
+                phrase, src, dst, model=model, temperature=temperature
+            )
             st.markdown(out["explanation"])
-            st.caption(f"Usage: {out['usage'].total_tokens} tokens")
+            st.caption(f"Model: {out['model']} — Usage: {out['usage'].total_tokens} tokens")
 
 st.divider()
 st.caption("Local MVP. Everyone uses their own API key. Built with Streamlit, FAISS, OpenAI. XYZ")
