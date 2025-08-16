@@ -41,18 +41,20 @@ st.sidebar.header("Settings")
 DATA_DIR = read_env("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
+# LLM / embeddings models
 model = st.sidebar.text_input("LLM model", read_env("MODEL", "gpt-4o-mini"))
 embed_model = st.sidebar.text_input(
     "Embedding model", read_env("EMBED_MODEL", "text-embedding-3-small")
 )
-asr_engine = st.sidebar.selectbox(
-    "ASR engine",
-    ["openai", "local"],
-    index=0 if read_env("ASR_ENGINE", "openai") == "openai" else 1,
+
+# Transcription model selector (single-option for now; easy to extend later)
+default_asr_model = read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
+transcribe_model = st.sidebar.selectbox(
+    "Transcription model",
+    [default_asr_model],
+    index=0,
 )
-asr_local_model = st.sidebar.text_input(
-    "Local Whisper model", read_env("ASR_LOCAL_MODEL", "base")
-)
+
 max_audio_minutes = int(read_env("MAX_AUDIO_MINUTES", "60"))
 top_k = int(read_env("TOP_K", "5"))
 max_answer_tokens = int(read_env("MAX_ANSWER_TOKENS", "800"))
@@ -84,14 +86,14 @@ with tab1:
     st.subheader("Upload audio and transcribe")
     uploaded = st.file_uploader(
         "Audio file (.mp3/.m4a/.wav)", type=["mp3", "m4a", "wav"], accept_multiple_files=False
-        # Note: Streamlit handles temporary storage; we persist below.
+        # Streamlit stores the file temporarily; we persist it below.
     )
     colA, colB = st.columns([1, 1])
     with colA:
         preferred_lang = st.text_input("Preferred language (optional, e.g., en, de, ru)", "")
     with colB:
         st.write("")
-        st.write(f"Engine: {asr_engine}")
+        st.write(f"Model: {transcribe_model}")
 
     if uploaded is not None:
         audio_bytes = uploaded.read()
@@ -113,7 +115,9 @@ with tab1:
             if st.button("Transcribe"):
                 with st.spinner("Transcribing..."):
                     res = transcribe(
-                        audio_path, engine=asr_engine, language=(preferred_lang or None)
+                        audio_path,
+                        model=transcribe_model,
+                        language=(preferred_lang or None),
                     )
                 st.session_state.transcript = res
                 out_dir = os.path.join(DATA_DIR, "transcripts")
@@ -245,4 +249,4 @@ with tab6:
             st.caption(f"Usage: {out['usage'].total_tokens} tokens")
 
 st.divider()
-st.caption("Local MVP. Everyone uses their own API key. Built with Streamlit, FAISS, Whisper, OpenAI.")
+st.caption("Local MVP. Everyone uses their own API key. Built with Streamlit, FAISS, OpenAI. XYZ")

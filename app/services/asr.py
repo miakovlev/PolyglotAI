@@ -11,24 +11,18 @@ from openai import OpenAI
 
 from .utils import read_env, ensure_dir
 
-# Local ASR
-try:
-    from faster_whisper import WhisperModel
-    _HAS_LOCAL = True
-except Exception:
-    _HAS_LOCAL = False
-
 DATA_DIR = read_env("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
 
 def _audio_duration_seconds(path: str) -> float:
+    """Utility: get audio duration in seconds."""
     try:
         audio = AudioSegment.from_file(path)
         return len(audio) / 1000.0
     except Exception:
         try:
-            with contextlib.closing(wave.open(path, 'r')) as f:
+            with contextlib.closing(wave.open(path, "r")) as f:
                 frames = f.getnframes()
                 rate = f.getframerate()
                 return frames / float(rate)
@@ -36,52 +30,41 @@ def _audio_duration_seconds(path: str) -> float:
             return 0.0
 
 
-def transcribe(audio_path: str, engine: str = "openai", language: Optional[str] = None) -> Dict[str, Any]:
+def transcribe(
+    audio_path: str,
+    model: Optional[str] = None,
+    language: Optional[str] = None,
+    **kwargs,  # for backward-compatibility (e.g., engine=...)
+) -> Dict[str, Any]:
     """
-    Returns: { text, segments: [{start, end, text}], language }
+    Transcribe audio using OpenAI only.
+
+    Args:
+        audio_path: path to the audio file.
+        model: OpenAI transcription model, e.g. "gpt-4o-mini-transcribe" (default from env ASR_MODEL or this value).
+        language: optional BCP-47 language code (e.g., "en", "de", "ru").
+        **kwargs: ignored (kept for compatibility if caller passes engine=...).
+
+    Returns:
+        {
+          "text": str,
+          "segments": [],          # timestamps are not returned by this endpoint
+          "language": Optional[str]
+        }
     """
-    engine = (engine or "openai").lower()
+    chosen_model = model or read_env("ASR_MODEL", "gpt-4o-mini-transcribe")
+    client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
 
-    if engine == "local":
-        if not _HAS_LOCAL:
-            raise RuntimeError("Local ASR requested but faster-whisper is not installed.")
+    with open(audio_path, "rb") as f:
+        resp = client.audio.transcriptions.create(
+            model=chosen_model,
+            file=f,
+            language=language
+        )
 
-        model_size = read_env("ASR_LOCAL_MODEL", "base")
-        model = WhisperModel(model_size, device="cpu", compute_type="int8")
-
-        segments_iter, info = model.transcribe(audio_path, language=language, vad_filter=True)
-
-        segs = []
-        txts = []
-        for s in segments_iter:
-            segs.append({
-                "start": float(s.start),
-                "end": float(s.end),
-                "text": s.text.strip()
-            })
-            txts.append(s.text.strip())
-
-        return {
-            "text": " ".join(txts).strip(),
-            "segments": segs,
-            "language": getattr(info, "language", language) or language
-        }
-
-    else:
-        client = OpenAI(api_key=read_env("OPENAI_API_KEY"))
-        with open(audio_path, "rb") as f:
-            resp = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=f,
-                language=language
-            )
-
-        # OpenAI Whisper returns 'text'
-        text = getattr(resp, "text", "")
-
-        # We may not get timestamps from API; keep empty list
-        return {
-            "text": text,
-            "segments": [],
-            "language": language
-        }
+    text = getattr(resp, "text", "") or ""
+    return {
+        "text": text.strip(),
+        "segments": [],  # API не отдаёт таймкоды — оставляем пустым
+        "language": language,
+    }

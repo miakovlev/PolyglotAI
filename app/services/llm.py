@@ -24,19 +24,21 @@ def structure_text(raw_text: str, mode: str = "dialog") -> Dict[str, Any]:
     system = "You reformulate transcripts into clean study-ready text."
 
     if mode == "dialog":
-        user = f"""Format the following transcript as a clean dialogue with speaker turns.
+        user = f"""Carefully analyze the following transcript and identify distinct, separate dialogues.
+For each distinct dialogue, format it as a clean conversation with speaker turns.
+If the transcript contains multiple distinct dialogues, separate them clearly with a noticeable separator, like a line of dashes.
 
-Merge broken lines, fix obvious punctuation.
-
-Keep natural short paragraphs.
-
-If speakers aren't labeled, use 'Speaker A/B'.
+For each dialogue:
+- Merge broken lines and fix obvious punctuation.
+- Keep natural short paragraphs.
+- Assign speaker roles: If speakers aren't labeled, use 'Speaker A', 'Speaker B', 'Speaker C', etc., ensuring these labels are consistent and sequential across ALL identified dialogues in the entire transcript.
 
 Transcript:
 {raw_text}
 """
     else:
         user = f"""Split the transcript into topics/sections with headings.
+If the transcript contains text from several distinct videos or segments, treat each as a separate major section.
 
 Provide a concise outline and the cleaned text per section.
 
