@@ -17,6 +17,22 @@ Each browser visitor gets an isolated Streamlit session (`st.session_state`). Ap
 
 ---
 
+## 🖼️ Screenshots
+
+![Home](docs/img1.png)
+*Upload audio and transcription*
+
+![Transcribe](docs/img2.png)
+*Text-to-Speech to MP3*
+
+![Structure](docs/img3.png)
+*Phrase explanation*
+
+![TTS](docs/img4.png)
+*Phrase translation*
+
+---
+
 ## 🧱 Project Structure
 
 ```
