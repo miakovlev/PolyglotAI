@@ -79,11 +79,10 @@ def require_google_auth() -> str:
         )
         signed_state = _make_state(client_secret)
         auth_url, _ = flow.authorization_url(
-            prompt="select_account consent",
+            prompt="consent",
             access_type="offline",
             include_granted_scopes="true",
             state=signed_state,
-            login_hint=(allowed[0] if isinstance(allowed, list) and allowed else None),
         )
         button_html = f"""
         <a href="{auth_url}" target="_self" style="text-decoration:none;">
