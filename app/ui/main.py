@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.services.auth.google_oauth import require_google_auth
+from app.services.auth.google_oauth import require_google_auth, logout
 from app.services.utils import (
     ensure_dir,
     save_json,
@@ -63,10 +63,13 @@ def pick_language(
     return LANG_PRESETS[choice]
 
 # ---- Google Login (moved to services/auth/google_oauth.py)
-require_google_auth()
+user_email = require_google_auth()
 
 # ---- Sidebar
 st.sidebar.header("Settings")
+st.sidebar.caption(f"Signed in as {user_email}")
+if st.sidebar.button("Log out"):
+    logout()
 DATA_DIR = st.secrets.get("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
