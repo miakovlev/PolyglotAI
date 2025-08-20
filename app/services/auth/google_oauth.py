@@ -39,8 +39,15 @@ def _qp(params, key: str) -> str:
         return v[0] if v else ""
     return v or ""
 
+def debug_oauth_banner():
+    redir = st.secrets.get("GOOGLE_REDIRECT_URI")
+    cid = st.secrets.get("GOOGLE_CLIENT_ID", "")
+    cid_tail = cid[-16:] if cid else "(missing)"
+    st.info(f"OAuth debug — redirect_uri: {redir} | client_id: …{cid_tail}")
+
 def require_google_auth() -> str:
     """Authenticate via Google OAuth and return the user's email."""
+    debug_oauth_banner()
     client_id = st.secrets.get("GOOGLE_CLIENT_ID")
     client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
     redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI")
