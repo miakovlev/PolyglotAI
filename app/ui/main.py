@@ -87,7 +87,7 @@ def require_google_auth() -> str:
         st.error("Google OAuth is not configured.")
         st.stop()
 
-    params = st.experimental_get_query_params()
+    params = st.query_params
     if "code" not in params:
         flow = Flow.from_client_config(
             {
@@ -106,7 +106,9 @@ def require_google_auth() -> str:
         st.markdown(f"[Login with Google]({auth_url})")
         st.stop()
 
-    state = params.get("state", [""])[0]
+    state = params.get("state", "")
+    if isinstance(state, list):
+        state = state[0] if state else ""
     if st.session_state.get("oauth_state") != state:
         st.error("State mismatch.")
         st.stop()
@@ -132,7 +134,7 @@ def require_google_auth() -> str:
         st.warning("Unauthorized email.")
         st.stop()
     st.session_state["user_email"] = email
-    st.experimental_set_query_params()
+    st.query_params.clear()
     return email
 
 
