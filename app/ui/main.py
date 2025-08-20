@@ -67,9 +67,6 @@ user_email = require_google_auth()
 
 # ---- Sidebar
 st.sidebar.header("Settings")
-st.sidebar.caption(f"Signed in as {user_email}")
-if st.sidebar.button("Log out"):
-    logout()
 DATA_DIR = st.secrets.get("DATA_DIR", "app/data")
 ensure_dir(DATA_DIR)
 
@@ -88,7 +85,9 @@ model = st.sidebar.selectbox(
 )
 
 max_audio_minutes = int(st.secrets.get("MAX_AUDIO_MINUTES", "60"))
-st.sidebar.caption("Keys are read from your local secrets.toml. Tokens are billed to YOUR account.")
+st.sidebar.caption(f"Signed in as {user_email}")
+if st.sidebar.button("Log out"):
+    logout()
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     ["1) Upload & Transcribe", "2) Structure", "3) Translate", "4) TTS", "5) Explain phrase", "6) Translate phrase"]
