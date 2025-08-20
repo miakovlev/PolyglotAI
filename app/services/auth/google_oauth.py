@@ -43,7 +43,7 @@ def require_google_auth() -> str:
     """Authenticate via Google OAuth and return the user's email."""
     client_id = st.secrets.get("GOOGLE_CLIENT_ID")
     client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
-    redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI", "http://localhost:8501/")
+    redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI")
     allowed = st.secrets.get("ALLOWED_EMAILS", [])
 
     if "user_email" in st.session_state:
