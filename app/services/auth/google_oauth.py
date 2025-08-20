@@ -87,7 +87,7 @@ def require_google_auth() -> str:
         )
         safe_auth_url = escape(auth_url, quote=True)
         button_html = f"""
-        <a href="{safe_auth_url}" target="_top" rel="noopener" style="text-decoration:none;">
+        <a href="{safe_auth_url}" target="_blank" rel="noopener" style="text-decoration:none;">
           <div style="
             display:flex;align-items:center;justify-content:center;
             background-color:white;color:#444;border:1px solid #dadce0;border-radius:4px;
