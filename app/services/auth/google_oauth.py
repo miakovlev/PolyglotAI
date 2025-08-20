@@ -39,17 +39,11 @@ def _qp(params, key: str) -> str:
         return v[0] if v else ""
     return v or ""
 
-def debug_oauth_banner():
-    redir = st.secrets.get("GOOGLE_REDIRECT_URI")
-    cid = st.secrets.get("GOOGLE_CLIENT_ID", "")
-    cid_tail = cid[-16:] if cid else "(missing)"
-    st.info(f"OAuth debug — redirect_uri: {redir} | client_id: …{cid_tail}")
-
 def require_google_auth() -> str:
     """Authenticate via Google OAuth and return the user's email."""
     client_id = st.secrets.get("GOOGLE_CLIENT_ID")
     client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
-    redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI")
+    redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI", "http://localhost:8501/")
     allowed = st.secrets.get("ALLOWED_EMAILS", [])
 
     if "user_email" in st.session_state:
@@ -84,26 +78,7 @@ def require_google_auth() -> str:
             include_granted_scopes="true",
             state=signed_state,
         )
-        button_html = f"""
-        <a href="{auth_url}" target="_self" style="text-decoration:none;">
-            <div style="
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                background-color:white;
-                color:#444;
-                border:1px solid #dadce0;
-                border-radius:4px;
-                padding:0.5em 1em;
-                font-size:16px;
-                font-weight:500;
-                cursor:pointer;">
-                <img src="https://developers.google.com/identity/images/g-logo.png" style="height:18px;margin-right:8px;">
-                <span>Sign in with Google</span>
-            </div>
-        </a>
-        """
-        st.markdown(button_html, unsafe_allow_html=True)
+        st.markdown(f"[Login with Google]({auth_url})")
         st.stop()
 
     # 2) Callback: verify state
@@ -136,9 +111,3 @@ def require_google_auth() -> str:
     st.session_state["user_email"] = email
     st.query_params.clear()
     return email
-
-
-def logout() -> None:
-    """Clear stored user session and rerun the app."""
-    st.session_state.pop("user_email", None)
-    st.rerun()
