@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.services.auth.google_oauth import require_google_auth
+from app.services.auth.google_oauth import require_google_auth, logout
 from app.services.utils import (
     ensure_dir,
     save_json,
@@ -63,7 +63,7 @@ def pick_language(
     return LANG_PRESETS[choice]
 
 # ---- Google Login (moved to services/auth/google_oauth.py)
-require_google_auth()
+user_email = require_google_auth()
 
 # ---- Sidebar
 st.sidebar.header("Settings")
@@ -85,7 +85,9 @@ model = st.sidebar.selectbox(
 )
 
 max_audio_minutes = int(st.secrets.get("MAX_AUDIO_MINUTES", "60"))
-st.sidebar.caption("Keys are read from your local secrets.toml. Tokens are billed to YOUR account.")
+st.sidebar.caption(f"Signed in as {user_email}")
+if st.sidebar.button("Log out"):
+    logout()
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     ["1) Upload & Transcribe", "2) Structure", "3) Translate", "4) TTS", "5) Explain phrase", "6) Translate phrase"]
