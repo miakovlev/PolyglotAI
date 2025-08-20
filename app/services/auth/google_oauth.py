@@ -47,7 +47,6 @@ def debug_oauth_banner():
 
 def require_google_auth() -> str:
     """Authenticate via Google OAuth and return the user's email."""
-    debug_oauth_banner()
     client_id = st.secrets.get("GOOGLE_CLIENT_ID")
     client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
     redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI")
