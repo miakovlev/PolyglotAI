@@ -78,7 +78,26 @@ def require_google_auth() -> str:
             include_granted_scopes="true",
             state=signed_state,
         )
-        st.markdown(f"[Login with Google]({auth_url})")
+        button_html = f"""
+        <a href="{auth_url}" target="_self" style="text-decoration:none;">
+            <div style="
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                background-color:white;
+                color:#444;
+                border:1px solid #dadce0;
+                border-radius:4px;
+                padding:0.5em 1em;
+                font-size:16px;
+                font-weight:500;
+                cursor:pointer;">
+                <img src="https://developers.google.com/identity/images/g-logo.png" style="height:18px;margin-right:8px;">
+                <span>Sign in with Google</span>
+            </div>
+        </a>
+        """
+        st.markdown(button_html, unsafe_allow_html=True)
         st.stop()
 
     # 2) Callback: verify state
@@ -111,3 +130,9 @@ def require_google_auth() -> str:
     st.session_state["user_email"] = email
     st.query_params.clear()
     return email
+
+
+def logout() -> None:
+    """Clear stored user session and rerun the app."""
+    st.session_state.pop("user_email", None)
+    st.rerun()
