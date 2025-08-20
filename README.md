@@ -58,7 +58,12 @@ Create `./.streamlit/secrets.toml`:
 ```toml
 # ==== Required ====
 OPENAI_API_KEY = "sk-your-key"
-APP_TOKEN = "admin"         # optional gate; if set, the app asks for it in the sidebar
+
+# ==== Auth ====
+GOOGLE_CLIENT_ID = "your-client-id.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "your-client-secret"
+GOOGLE_REDIRECT_URI = "http://localhost:8501/"  # adjust to your URL
+ALLOWED_EMAILS = ["user@example.com"]          # optional whitelist
 
 # ==== Models ====
 MODEL = "gpt-5-mini"

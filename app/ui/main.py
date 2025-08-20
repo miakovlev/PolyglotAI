@@ -11,6 +11,9 @@ import pathlib
 from typing import Optional
 
 import streamlit as st
+from google_auth_oauthlib.flow import Flow
+from google.oauth2 import id_token
+import google.auth.transport.requests
 
 from app.services.utils import (
     ensure_dir,
@@ -69,13 +72,71 @@ def pick_language(
         return (custom or "").strip()
     return LANG_PRESETS[choice]
 
-# --- Auth (simple) ---
-APP_TOKEN = st.secrets.get("APP_TOKEN", "")
-if APP_TOKEN:
-    token = st.sidebar.text_input("Enter APP_TOKEN", type="password")
-    if token != APP_TOKEN:
-        st.warning("Enter APP_TOKEN to unlock the app.")
+# --- Auth via Google ---
+def require_google_auth() -> str:
+    """Authenticate user via Google OAuth and return email."""
+    client_id = st.secrets.get("GOOGLE_CLIENT_ID")
+    client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
+    redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI", "http://localhost:8501/")
+    allowed = st.secrets.get("ALLOWED_EMAILS", [])
+
+    if "user_email" in st.session_state:
+        return st.session_state["user_email"]
+
+    if not client_id or not client_secret:
+        st.error("Google OAuth is not configured.")
         st.stop()
+
+    params = st.experimental_get_query_params()
+    if "code" not in params:
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+            },
+            scopes=["openid", "email"],
+            redirect_uri=redirect_uri,
+        )
+        auth_url, state = flow.authorization_url(prompt="consent")
+        st.session_state["oauth_state"] = state
+        st.markdown(f"[Login with Google]({auth_url})")
+        st.stop()
+
+    state = params.get("state", [""])[0]
+    if st.session_state.get("oauth_state") != state:
+        st.error("State mismatch.")
+        st.stop()
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=["openid", "email"],
+        redirect_uri=redirect_uri,
+        state=state,
+    )
+    flow.fetch_token(code=params["code"][0] if isinstance(params["code"], list) else params["code"])
+    request = google.auth.transport.requests.Request()
+    info = id_token.verify_oauth2_token(flow.credentials.id_token, request, client_id)
+    email = info.get("email")
+    if allowed and email not in allowed:
+        st.warning("Unauthorized email.")
+        st.stop()
+    st.session_state["user_email"] = email
+    st.experimental_set_query_params()
+    return email
+
+
+require_google_auth()
 
 # --- Sidebar settings ---
 st.sidebar.header("Settings")
